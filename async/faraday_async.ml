@@ -1,9 +1,6 @@
 open Core
 open Async
 
-module Unix = Core.Unix
-
-
 let serialize t ~yield ~writev =
   let shutdown () =
     Faraday.close t;
@@ -37,18 +34,18 @@ let writev_of_fd fd =
     failwithf "writev_of_fd got bad fd: %s" (Fd.to_string fd)
   in
   let finish result =
-    let open Unix.Error in
+    let open Core_unix.Error in
     match result with
     | `Ok n           -> return (`Ok n)
     | `Already_closed -> return `Closed
-    | `Error (Unix.Unix_error ((EWOULDBLOCK | EAGAIN), _, _)) ->
+    | `Error (Core_unix.Unix_error ((EWOULDBLOCK | EAGAIN), _, _)) ->
       begin Fd.ready_to fd `Write
       >>| function
         | `Bad_fd -> badfd ()
         | `Closed -> `Closed
         | `Ready  -> `Ok 0
       end
-    | `Error (Unix.Unix_error (EBADF, _, _)) ->
+    | `Error (Core_unix.Unix_error (EBADF, _, _)) ->
       badfd ()
     | `Error exn ->
       Deferred.don't_wait_for (Fd.close fd);
@@ -57,7 +54,7 @@ let writev_of_fd fd =
   fun iovecs ->
     let iovecs = Array.of_list_map iovecs ~f:(fun iovec ->
       let { Faraday.buffer; off = pos; len } = iovec in
-      Unix.IOVec.of_bigstring ~pos ~len buffer)
+      Core_unix.IOVec.of_bigstring ~pos ~len buffer)
     in
     if Fd.supports_nonblock fd then
       finish
